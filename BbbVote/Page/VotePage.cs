@@ -8,9 +8,16 @@ namespace BbbVote.Page
 {
     internal class VotePage : BaseApplicationPage
     {
-        public VotePage(int timeout) : base(timeout)
+        internal readonly string _url;
+        public VotePage(int timeout, string url) : base(timeout)
         {
+            _url = url;
         }
 
+
+        internal void GoTo()
+        {
+            Driver.Navigate().GoToUrl(_url);
+        }
     }
 }
