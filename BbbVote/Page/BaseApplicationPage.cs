@@ -16,7 +16,13 @@ namespace BbbVote.Page
             var factory = new WebDriverFactory();
             Driver = factory.Create(BrowserType.Chrome);
             Driver.Manage().Window.Maximize();
-            Driver.Manage().Timeouts().ImplicitWait = TimeSpan.FromSeconds(10);
+            Driver.Manage().Timeouts().ImplicitWait = TimeSpan.FromSeconds(1000);
+        }
+
+        public BaseApplicationPage(int timeout, IWebDriver driver)
+        {
+            Driver = driver;
+            _timeout = timeout;
         }
 
         protected IWebDriver Driver { get; set; }

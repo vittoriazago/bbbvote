@@ -13,11 +13,14 @@ namespace BbbVote
         {
             var currentLogger = LogManager.GetCurrentClassLogger();
 
-            var votaPage = new VotePage(
-                                    int.Parse(config["timeout"]), 
-                                    config["url"],
+            var loginPage = new LoginPage(
+                                    int.Parse(config["timeout"]),
+                                    config["urlLogin"],
                                     currentLogger);
-            votaPage.GoTo();
+            loginPage.GoTo();
+
+            var votaPage = loginPage.Logar(config["urlVoto"], config["login"], config["senha"]);
+            votaPage.VotarPessoa(config["votarEm"]);
         }
     }
 }
