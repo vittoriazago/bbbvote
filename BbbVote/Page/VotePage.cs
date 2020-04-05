@@ -63,24 +63,28 @@ namespace BbbVote.Page
         {
             VerificaElementoClickavel(xpathReload);
 
+            _logger.Info($"Resolvendo captcha");
+
             var textOfCaptcha = TextImageCaptcha.Text.ToLower();
             var click = ImageUtils.GetImageIndex(Driver, textOfCaptcha, xpathImage);
             if (click == -1)
             {
+                VerificaElementoClickavel(xpathReload);
                 ReloadCaptchaButton.Click();
                 ResolveCaptcha();
             }
 
-            Actions act = new Actions(Driver);
-            var xClick = (click * 53) + 25;
-            act.MoveToElement(ImageCaptcha).MoveByOffset(xClick, 25).Click().Perform();
-
             try
             {
-                VerificaElementoCarregado(xpathButtonVotarNovamente);
+                Actions act = new Actions(Driver);
+                var xClick = (click * 53) + 25;
+                act.MoveToElement(ImageCaptcha).MoveByOffset(xClick, 25).Click().Perform();
+
+                VerificaElementoCarregado(xpathButtonVotarNovamente, 10);
             }
             catch
             {
+                VerificaElementoClickavel(xpathReload);
                 ReloadCaptchaButton.Click();
                 ResolveCaptcha();
             }
@@ -97,7 +101,7 @@ namespace BbbVote.Page
         public IWebElement ImageCaptcha => Driver.FindElement(By.XPath("//div[//span[contains(text(),'voto')]]//img[contains(@src,'base64')]"));
 
 
-        private readonly string xpathReload = "//button[contains(text(),'Recarregar')]";
+        private readonly string xpathReload = "//button[contains(@title,'Recarregar')]";
         public IWebElement ReloadCaptchaButton => Driver.FindElement(By.XPath(xpathReload));
 
         private readonly string xpathButtonVotarNovamente = "//button[contains(text(),'Votar novamente')]";

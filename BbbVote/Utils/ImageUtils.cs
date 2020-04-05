@@ -1,13 +1,10 @@
 ﻿using OpenQA.Selenium;
 using System;
-using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.Globalization;
 using System.IO;
 using System.Linq;
-using System.Runtime.Intrinsics.X86;
-using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -31,7 +28,7 @@ namespace BbbVote.Page
             string[] imagesFromCaptchaName = GetImagesFromCaptchaName(captchaName);
             for (int indexImageRepo = 0; indexImageRepo < imagesFromCaptchaName.Length; indexImageRepo++)
             {
-                var path = Path.Combine(_captchaPath, imagesFromCaptchaName[indexImageRepo]);
+                var path = Path.Combine(_captchaPath, "tratado", imagesFromCaptchaName[indexImageRepo]);
                 var imageFromNameBit = new Bitmap(path);
                 for (int indexImageCaptcha = 0; indexImageCaptcha < imagesFromCaptcha.Length; indexImageCaptcha++)
                 {
@@ -40,16 +37,14 @@ namespace BbbVote.Page
 
                     var hash1 = GetHash(imageFromNameBit);
                     var hash2 = GetHash(imagesFromCaptcha[indexImageCaptcha]);
-                    bool different = false;
+                    int similiarity = 0;
                     for (int i = 0; i < hash1.Length && i < hash2.Length; i++)
                     {
-                        if (hash1[i] != hash2[i])
-                        {
-                            different = true;
-                            break;
-                        }
+                        if (hash1[i] == hash2[i])
+                            similiarity++;
                     }
-                    if (!different)
+                    var percent = similiarity * 100 / Math.Min(hash1.Length, hash2.Length);
+                    if (percent > 70)
                         return indexImageCaptcha;
                 }
             }
@@ -59,7 +54,7 @@ namespace BbbVote.Page
         private static string[] GetImagesFromCaptchaName(string captchaName)
         {
             captchaName = RemoveDiacritics(captchaName);
-            var directory = new DirectoryInfo(_captchaPath);
+            var directory = new DirectoryInfo(_captchaPath + "\\tratado");
             var files = directory.GetFiles("*.png");
             return files.Select(f => f.Name).Where(n => n.Contains(captchaName)).ToArray();
         }
@@ -75,28 +70,160 @@ namespace BbbVote.Page
             }
             return sbReturn.ToString();
         }
-
-        private static Bitmap[] CutImageIntoFive(string path)
+        public static void ProcessaRetroativo()
+        {
+            var directory = new DirectoryInfo(_captchaPath);
+            var files = directory.GetFiles("*.png");
+            foreach (var file in files)
+            {
+                CutImageIntoFive(Path.Combine(_captchaPath, file.Name));
+            }
+        }
+        public static Bitmap[] CutImageIntoFive(string path)
         {
             Bitmap[] bitmaps = new Bitmap[5];
-
             Bitmap source = new Bitmap(path);
-            for (int i = 0; i < 5; i++)
+
+            int[] array = RecuperaPosicoesQuebra(source);
+            for (int indiceParPosicoes = 0, indiceBitMap = 0; 
+                                indiceParPosicoes < array.Length; 
+                                indiceParPosicoes += 2, indiceBitMap++)
             {
-                Rectangle section = new Rectangle(new Point(i * 53, 0), new Size(53, 53));
+                var dif = array[indiceParPosicoes + 1] - array[indiceParPosicoes];
+                if (dif == 0) continue;
+                var section = new Rectangle(new Point(array[indiceParPosicoes], 0), new Size(dif, 53));
 
                 var bitmap = CropImage(source, section);
-                SaveFile(bitmap, out string pathFile, i.ToString());
+                bitmap = RecuperaPosicoesQuebraAltura(bitmap);
+                bitmap = RetiraLinhasPretas(bitmap);
+                bitmap = RetiraColunasVazias(bitmap);
 
-                bitmaps[i] = bitmap;
+                SaveFile(bitmap, out string _, indiceParPosicoes.ToString(), "tratado");
+                bitmaps[indiceBitMap] = bitmap;
             }
             return bitmaps;
         }
 
-        private static void SaveFile(Bitmap bitmap, out string pathFile, string indice = "")
+        private static Bitmap RetiraColunasVazias(Bitmap bitmap)
+        {
+            int indiceArray = 0;
+            int[] corteLargura = new int[2];
+            bool colunaAnteriorBranca = true;
+            for (int x = 0; x < bitmap.Width; x++)
+            {
+                bool colunaBranca = true;
+                for (int y = 0; y < bitmap.Height; y++)
+                {
+                    Color pixelColor = bitmap.GetPixel(x, y);
+                    if (pixelColor.R < 248
+                        || pixelColor.G < 248
+                        || pixelColor.B < 248)
+                    {
+                        colunaBranca = false;
+                    }
+                }
+                if (colunaBranca != colunaAnteriorBranca
+                     && indiceArray < 2)
+                    corteLargura[indiceArray++] = x;
+
+                colunaAnteriorBranca = colunaBranca;
+            }
+            if (indiceArray != 2)
+                return bitmap;
+
+            var dif = corteLargura[1] - corteLargura[0];
+            var section = new Rectangle(new Point(corteLargura[0], 0), new Size(dif, bitmap.Height));
+
+            bitmap = CropImage(bitmap, section);
+            return bitmap;
+        }
+
+        private static Bitmap RetiraLinhasPretas(Bitmap bitmap)
+        {
+            for (int y = 0; y < bitmap.Height; y++)
+            {
+                bool linhaPreta = true;
+                for (int x = 0; x < bitmap.Width; x++)
+                {
+                    Color pixelColor = bitmap.GetPixel(x, y);
+                    if (pixelColor.R > 0
+                        || pixelColor.G > 0
+                        || pixelColor.B > 0)
+                    {
+                        linhaPreta = false;
+                    }
+                }
+                for (int x = 0; x < bitmap.Width && linhaPreta; x++)
+                    bitmap.SetPixel(x, y, Color.White);
+            }
+            return bitmap;
+        }
+
+        private static Bitmap RecuperaPosicoesQuebraAltura(Bitmap bitmap)
+        {
+            var indiceArray = 0;
+            bool linhaAnteriorBranca = true;
+            int[] corteAltura = new int[2];
+            for (int y = 0; y < bitmap.Height; y++)
+            {
+                bool linhaBranca = true;
+                for (int x = 0; x < bitmap.Width; x++)
+                {
+                    Color pixelColor = bitmap.GetPixel(x, y);
+                    if (pixelColor.R < 248
+                        && pixelColor.G < 248
+                        && pixelColor.B < 248)
+                    {
+                        linhaBranca = false;
+                    }
+                }
+                if (linhaBranca != linhaAnteriorBranca
+                    && indiceArray < 2)
+                    corteAltura[indiceArray++] = y;
+
+                linhaAnteriorBranca = linhaBranca;
+            }
+
+            var difAltura = corteAltura[1] - corteAltura[0];
+            if (difAltura < 1) return bitmap;
+            var section = new Rectangle(new Point(0, corteAltura[0]), new Size(bitmap.Width, difAltura));
+            bitmap = CropImage(bitmap, section);
+            return bitmap;
+        }
+
+        private static int[] RecuperaPosicoesQuebra(Bitmap source)
+        {
+            int indiceArray = 0;
+            int[] array = new int[10];
+            bool colunaAnteriorBranca = true;
+            for (int x = 0; x < source.Width; x++)
+            {
+                bool colunaBranca = true;
+                for (int y = 0; y < source.Height; y++)
+                {
+                    Color pixelColor = source.GetPixel(x, y);
+                    if (pixelColor.R < 248
+                        || pixelColor.G < 248
+                        || pixelColor.B < 248)
+                    {
+                        colunaBranca = false;
+                    }
+                }
+                if (colunaBranca != colunaAnteriorBranca
+                     && indiceArray < 10)
+                    array[indiceArray++] = x;
+
+                colunaAnteriorBranca = colunaBranca;
+            }
+            return array;
+        }
+
+        private static void SaveFile(Bitmap bitmap, out string pathFile,
+            string indice = "", 
+            string folder = "")
         {
             string nomeArquivo = string.Format("{0:yyMMddhhmmss}", DateTime.Now) + indice + ".png";
-            pathFile = Path.Combine(_captchaPath, nomeArquivo);
+            pathFile = Path.Combine(_captchaPath, folder, nomeArquivo);
             bitmap.Save(pathFile, ImageFormat.Png);
         }
 
@@ -118,6 +245,9 @@ namespace BbbVote.Page
 
         private static Bitmap CropImage(Bitmap source, Rectangle section)
         {
+            if (source.Width < section.Width
+                || source.Height < section.Height)
+                return source;
             var bitmap = new Bitmap(section.Width, section.Height);
             using (var g = Graphics.FromImage(bitmap))
             {

@@ -15,8 +15,8 @@ namespace BbbVote.Page
 
             var factory = new WebDriverFactory();
             Driver = factory.Create(BrowserType.Firefox);
-            Driver.Manage().Window.Maximize();
-            Driver.Manage().Timeouts().ImplicitWait = TimeSpan.FromSeconds(1000);
+            //Driver.Manage().Window.Maximize();
+            Driver.Manage().Timeouts().ImplicitWait = TimeSpan.FromSeconds(100);
         }
 
         public BaseApplicationPage(int timeout, IWebDriver driver)
@@ -33,9 +33,9 @@ namespace BbbVote.Page
             return wait.Until(ExpectedConditions.UrlContains(url));
         }
 
-        internal bool VerificaElementoCarregado(string xpath)
+        internal bool VerificaElementoCarregado(string xpath, int? timeout = null)
         {
-            WebDriverWait wait = new WebDriverWait(Driver, TimeSpan.FromSeconds(_timeout));
+            WebDriverWait wait = new WebDriverWait(Driver, TimeSpan.FromSeconds(timeout ?? _timeout));
             return wait.Until(ExpectedConditions.ElementIsVisible(By.XPath(xpath))) != null;
         }
 

@@ -2,6 +2,9 @@
 using Microsoft.Extensions.Configuration;
 using NLog;
 using System;
+using System.Drawing;
+using System.Drawing.Imaging;
+using System.IO;
 
 namespace BbbVote
 {
@@ -20,7 +23,7 @@ namespace BbbVote
             loginPage.GoTo();
 
             var votaPage = loginPage.Logar(config["urlVoto"], config["login"], config["senha"]);
-            votaPage.VotarPessoa(config["votarEm"]);
+            votaPage.VotarPessoa(config["votarEm"], 10);
         }
     }
 }
