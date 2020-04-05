@@ -1,5 +1,6 @@
 ﻿using NLog;
 using OpenQA.Selenium;
+using OpenQA.Selenium.Interactions;
 
 namespace BbbVote.Page
 {
@@ -37,34 +38,70 @@ namespace BbbVote.Page
             }
         }
 
+        internal void VotarPessoa(string nomePessoa, int quantidadeVotos)
+        {
+            for (int voto = 0; voto < quantidadeVotos; voto++)
+            {
+                VotarPessoa(nomePessoa);
+                VotarNovamenteButton.Click();
+            }
+        }
+
         internal void VotarPessoa(string nomePessoa)
         {
             _logger.Info($"Votando em {nomePessoa}");
-
 
             VerificaElementoCarregado("//div[contains(text(),'Paredão')]");
 
             var elemento = GetPessoaVoto(nomePessoa);
             elemento.Click();
 
+            ResolveCaptcha();
+        }
+
+        private void ResolveCaptcha()
+        {
             VerificaElementoClickavel(xpathReload);
 
             var textOfCaptcha = TextImageCaptcha.Text.ToLower();
-            var click = ImageUtils.GetImage(Driver, textOfCaptcha, xpathImage);
+            var click = ImageUtils.GetImageIndex(Driver, textOfCaptcha, xpathImage);
+            if (click == -1)
+            {
+                ReloadCaptchaButton.Click();
+                ResolveCaptcha();
+            }
+
+            Actions act = new Actions(Driver);
+            var xClick = (click * 53) + 25;
+            act.MoveToElement(ImageCaptcha).MoveByOffset(xClick, 25).Click().Perform();
+
+            try
+            {
+                VerificaElementoCarregado(xpathButtonVotarNovamente);
+            }
+            catch
+            {
+                ReloadCaptchaButton.Click();
+                ResolveCaptcha();
+            }
         }
 
         private IWebElement GetPessoaVoto(string nomePessoa)
         {
-            return Driver.FindElement(By.XPath($"/html/body/div[2]/div[4]/div/div[1]/div[4]/div[2]/div"));
+            return Driver.FindElement(By.XPath($"(//div[div[contains(text(), '{nomePessoa}')]])[2]"));
         }
 
-        public IWebElement TextImageCaptcha => Driver.FindElement(By.XPath("//div[//span[contains(text(),'voto')]]//span[2]"));
+        public IWebElement TextImageCaptcha => Driver.FindElement(By.XPath("//div[span[contains(text(),'Para confirmar seu voto')]]//span[2]"));
 
-        private string xpathImage = "//div[//span[contains(text(),'voto')]]//img";
-        public IWebElement ImageOfCaptcha => Driver.FindElement(By.XPath(xpathImage));
+        private readonly string xpathImage = "//div[//span[contains(text(),\\'voto\\')]]//img[contains(@src,\\'base64\\')]";
+        public IWebElement ImageCaptcha => Driver.FindElement(By.XPath("//div[//span[contains(text(),'voto')]]//img[contains(@src,'base64')]"));
 
-        private string xpathReload = "//button[contains(text(),'Recarregar')]";
+
+        private readonly string xpathReload = "//button[contains(text(),'Recarregar')]";
         public IWebElement ReloadCaptchaButton => Driver.FindElement(By.XPath(xpathReload));
+
+        private readonly string xpathButtonVotarNovamente = "//button[contains(text(),'Votar novamente')]";
+        public IWebElement VotarNovamenteButton => Driver.FindElement(By.XPath(xpathButtonVotarNovamente));
 
     }
 }
